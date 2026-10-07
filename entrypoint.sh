@@ -28,7 +28,7 @@ fi
 
 # DIRECT_DOMAINS: comma-separated domains that must always be fetched
 # directly, bypassing the cache_peer.
-# Example: DIRECT_DOMAINS="ssmop.ciscoplusnet.com,.example.com"
+# Example: DIRECT_DOMAINS="service.internal.example.com,.example.com"
 if [ -n "$DIRECT_DOMAINS" ]; then
     {
         printf 'acl direct_domain dstdomain'
@@ -41,8 +41,8 @@ if [ -n "$DIRECT_DOMAINS" ]; then
 fi
 
 # CACHE_PEER: upstream parent proxy
-# Example: CACHE_PEER="91.218.183.121 53128"
-#          CACHE_PEER="91.218.183.121 53128 login=user:pass"
+# Example: CACHE_PEER="192.0.2.100 53128"
+#          CACHE_PEER="192.0.2.100 53128 login=user:pass"
 # CACHE_PEER_NEVER_DIRECT=1 forces ALL traffic through the peer.
 # If unset but ALLOWED_IPS is set, only those IPs are forced through the peer.
 if [ -n "$CACHE_PEER" ]; then

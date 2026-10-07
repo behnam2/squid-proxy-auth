@@ -61,9 +61,9 @@ docker run -d \
 |---------------------------|----------|-------------|
 | `PROXY_USERNAME`          | Yes      | Username for proxy authentication |
 | `PROXY_PASSWORD`          | Yes      | Password for proxy authentication |
-| `ALLOWED_IPS`             | No       | Comma-separated source IPs/CIDRs allowed **without** auth. Example: `178.22.122.200,46.102.0.0/16` |
-| `DIRECT_DOMAINS`          | No       | Comma-separated domains fetched **directly**, bypassing the parent peer. Example: `ssmop.ciscoplusnet.com,.example.com` |
-| `CACHE_PEER`              | No       | Upstream parent proxy: `host port [extra squid options]`. Example: `91.218.183.121 53128` |
+| `ALLOWED_IPS`             | No       | Comma-separated source IPs/CIDRs allowed **without** auth. Example: `203.0.113.10,198.51.100.0/24` |
+| `DIRECT_DOMAINS`          | No       | Comma-separated domains fetched **directly**, bypassing the parent peer. Example: `service.internal.example.com,.example.com` |
+| `CACHE_PEER`              | No       | Upstream parent proxy: `host port [extra squid options]`. Example: `192.0.2.100 53128` |
 | `CACHE_PEER_NEVER_DIRECT` | No       | Set to `1` to force **all** traffic through the parent peer |
 | `PROXY_PORT`              | No       | Host port to publish (compose only, default `3128`) |
 | `CONTAINER_NAME`          | No       | Container name (compose only, default `squidproxy`) |
@@ -97,20 +97,20 @@ Point your browser or system proxy settings to `<host>:3128` and enter the usern
 To forward traffic through another proxy (for example a server-side relay):
 
 ```env
-CACHE_PEER=91.218.183.121 53128
+CACHE_PEER=192.0.2.100 53128
 ```
 
 This generates:
 
 ```
-cache_peer 91.218.183.121 parent 53128 0 no-query default
-cache_peer_access 91.218.183.121 allow all
+cache_peer 192.0.2.100 parent 53128 0 no-query default
+cache_peer_access 192.0.2.100 allow all
 ```
 
 ### Force everything through the parent
 
 ```env
-CACHE_PEER=91.218.183.121 53128
+CACHE_PEER=192.0.2.100 53128
 CACHE_PEER_NEVER_DIRECT=1
 ```
 
@@ -123,15 +123,15 @@ If `CACHE_PEER` is set **without** `CACHE_PEER_NEVER_DIRECT`, only `ALLOWED_IPS`
 ### Parent requires authentication
 
 ```env
-CACHE_PEER=91.218.183.121 53128 login=parentuser:parentpass
+CACHE_PEER=192.0.2.100 53128 login=parentuser:parentpass
 ```
 
 ## Bypassing the Parent for Specific Domains
 
 ```env
-CACHE_PEER=91.218.183.121 53128
+CACHE_PEER=192.0.2.100 53128
 CACHE_PEER_NEVER_DIRECT=1
-DIRECT_DOMAINS=ssmop.ciscoplusnet.com,.internal.example.com
+DIRECT_DOMAINS=service.internal.example.com,.internal.example.com
 ```
 
 Requests to those domains are fetched directly; everything else goes through the parent.
@@ -139,7 +139,7 @@ Requests to those domains are fetched directly; everything else goes through the
 ## Allowing Trusted IPs Without Auth
 
 ```env
-ALLOWED_IPS=178.22.122.200,46.102.141.2
+ALLOWED_IPS=203.0.113.10,198.51.100.20
 ```
 
 Requests from these source IPs skip authentication; everyone else must authenticate. **Note:** `localhost` is also allowed without auth by default (for health checks and local tooling).
