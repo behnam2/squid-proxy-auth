@@ -11,6 +11,6 @@ RUN chmod +x /entrypoint.sh
 EXPOSE 3128
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -sf -x http://127.0.0.1:3128 http://www.google.com -o /dev/null || exit 1
+    CMD [ "$(netstat -tln 2>/dev/null | grep -c ':3128 ')" -gt 0 ] || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
