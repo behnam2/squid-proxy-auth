@@ -1,14 +1,22 @@
+name: ${COMPOSE_PROJECT_NAME:-squid-proxy-auth}
+
 services:
   squid:
     build: .
     image: b3hnam/squid-proxy-auth:latest
-    container_name: squidproxy
+    container_name: ${CONTAINER_NAME:-squidproxy}
     restart: unless-stopped
     ports:
-      - "3128:3128"
+      - "${PROXY_PORT:-3128}:3128"
     environment:
       PROXY_USERNAME: ${PROXY_USERNAME:?Set it in .env}
       PROXY_PASSWORD: ${PROXY_PASSWORD:?Set it in .env}
+      # Optional: comma-separated IPs/CIDRs allowed without auth
+      ALLOWED_IPS: ${ALLOWED_IPS:-}
+      # Optional: upstream parent proxy -> "host port [extra options]"
+      CACHE_PEER: ${CACHE_PEER:-}
+      # Optional: 1 = force all traffic through the peer
+      CACHE_PEER_NEVER_DIRECT: ${CACHE_PEER_NEVER_DIRECT:-}
     volumes:
       - squid-cache:/var/spool/squid
     healthcheck:
@@ -20,3 +28,4 @@ services:
 
 volumes:
   squid-cache:
+    name: ${CACHE_VOLUME_NAME:-squid-cache}
