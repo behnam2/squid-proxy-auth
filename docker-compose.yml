@@ -1,0 +1,22 @@
+services:
+  squid:
+    build: .
+    image: b3hnam/squid-proxy-auth:latest
+    container_name: squidproxy
+    restart: unless-stopped
+    ports:
+      - "3128:3128"
+    environment:
+      PROXY_USERNAME: ${PROXY_USERNAME:?Set it in .env}
+      PROXY_PASSWORD: ${PROXY_PASSWORD:?Set it in .env}
+    volumes:
+      - squid-cache:/var/spool/squid
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-x", "http://127.0.0.1:3128", "http://www.google.com", "-o", "/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  squid-cache:
