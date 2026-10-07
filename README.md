@@ -4,10 +4,11 @@ A lightweight Squid forward-proxy Docker image with built-in basic authenticatio
 
 ## Features
 
-- **Tiny footprint** — based on Alpine Linux
+- **Tiny footprint** — based on Alpine Linux (Squid 6.x)
 - **Basic auth out of the box** — credentials injected via environment variables
-- **IP allowlist** — let trusted source IPs bypass authentication
+- **IP allowlist** — trusted source IPs bypass authentication
 - **Upstream parent proxy** — chain to another proxy (e.g. a server-side relay) with one env var
+- **Domain-based routing** — send specific domains directly, bypassing the parent
 - **Sane defaults** — safe ports only, CONNECT restricted to SSL, headers anonymized
 - **Healthcheck included** — Docker reports container health automatically
 - **Persistent cache** — swap directories initialized on first run
@@ -56,17 +57,18 @@ docker run -d \
 
 ## Environment Variables
 
-| Variable                | Required | Description |
-|-------------------------|----------|-------------|
-| `PROXY_USERNAME`        | Yes      | Username for proxy authentication |
-| `PROXY_PASSWORD`        | Yes      | Password for proxy authentication |
-| `ALLOWED_IPS`           | No       | Comma-separated source IPs/CIDRs allowed **without** auth. Example: `178.22.122.200,46.102.0.0/16` |
-| `CACHE_PEER`            | No       | Upstream parent proxy: `host port [extra squid options]`. Example: `91.218.183.121 53128` |
-| `CACHE_PEER_NEVER_DIRECT` | No     | Set to `1` to force **all** traffic through the parent peer (never connect directly) |
-| `PROXY_PORT`            | No       | Host port to publish (compose only, default `3128`) |
-| `CONTAINER_NAME`        | No       | Container name (compose only, default `squidproxy`) |
-| `CACHE_VOLUME_NAME`     | No       | Docker volume name for the cache (compose only, default `squid-cache`) |
-| `COMPOSE_PROJECT_NAME`  | No       | Compose project name (default `squid-proxy-auth`) |
+| Variable                  | Required | Description |
+|---------------------------|----------|-------------|
+| `PROXY_USERNAME`          | Yes      | Username for proxy authentication |
+| `PROXY_PASSWORD`          | Yes      | Password for proxy authentication |
+| `ALLOWED_IPS`             | No       | Comma-separated source IPs/CIDRs allowed **without** auth. Example: `178.22.122.200,46.102.0.0/16` |
+| `DIRECT_DOMAINS`          | No       | Comma-separated domains fetched **directly**, bypassing the parent peer. Example: `ssmop.ciscoplusnet.com,.example.com` |
+| `CACHE_PEER`              | No       | Upstream parent proxy: `host port [extra squid options]`. Example: `91.218.183.121 53128` |
+| `CACHE_PEER_NEVER_DIRECT` | No       | Set to `1` to force **all** traffic through the parent peer |
+| `PROXY_PORT`              | No       | Host port to publish (compose only, default `3128`) |
+| `CONTAINER_NAME`          | No       | Container name (compose only, default `squidproxy`) |
+| `CACHE_VOLUME_NAME`       | No       | Docker volume name for the cache (compose only, default `squid-cache`) |
+| `COMPOSE_PROJECT_NAME`    | No       | Compose project name (default `squid-proxy-auth`) |
 
 The container refuses to start if `PROXY_USERNAME` or `PROXY_PASSWORD` is missing.
 
@@ -92,11 +94,10 @@ Point your browser or system proxy settings to `<host>:3128` and enter the usern
 
 ## Chaining to an Upstream Proxy
 
-To forward all traffic through another proxy (for example a server-side relay):
+To forward traffic through another proxy (for example a server-side relay):
 
 ```env
 CACHE_PEER=91.218.183.121 53128
-CACHE_PEER_NEVER_DIRECT=1
 ```
 
 This generates:
@@ -104,14 +105,36 @@ This generates:
 ```
 cache_peer 91.218.183.121 parent 53128 0 no-query default
 cache_peer_access 91.218.183.121 allow all
-never_direct allow all
 ```
 
-If the parent requires authentication, append squid login options:
+### Force everything through the parent
+
+```env
+CACHE_PEER=91.218.183.121 53128
+CACHE_PEER_NEVER_DIRECT=1
+```
+
+Adds `never_direct allow all` — Squid will never connect to origin servers directly.
+
+### Force only allowlisted IPs through the parent
+
+If `CACHE_PEER` is set **without** `CACHE_PEER_NEVER_DIRECT`, only `ALLOWED_IPS` clients are forced through the peer (authenticated users go direct). This matches a split-tunnel setup.
+
+### Parent requires authentication
 
 ```env
 CACHE_PEER=91.218.183.121 53128 login=parentuser:parentpass
 ```
+
+## Bypassing the Parent for Specific Domains
+
+```env
+CACHE_PEER=91.218.183.121 53128
+CACHE_PEER_NEVER_DIRECT=1
+DIRECT_DOMAINS=ssmop.ciscoplusnet.com,.internal.example.com
+```
+
+Requests to those domains are fetched directly; everything else goes through the parent.
 
 ## Allowing Trusted IPs Without Auth
 
@@ -119,16 +142,16 @@ CACHE_PEER=91.218.183.121 53128 login=parentuser:parentpass
 ALLOWED_IPS=178.22.122.200,46.102.141.2
 ```
 
-Requests from these source IPs skip authentication; everyone else must authenticate.
+Requests from these source IPs skip authentication; everyone else must authenticate. **Note:** `localhost` is also allowed without auth by default (for health checks and local tooling).
 
 ## Verify It Works
 
 ```bash
 # Without credentials — should return 407 Proxy Authentication Required
-curl -x http://localhost:3128 http://httpbin.org/ip
+curl -x http://<server-ip>:3128 http://httpbin.org/ip
 
 # With credentials — should return the page
-curl -x http://myuser:my-strong-password@localhost:3128 https://example.com
+curl -x http://myuser:my-strong-password@<server-ip>:3128 https://example.com
 ```
 
 Check the access log to see whether traffic goes direct or via the parent:
@@ -139,7 +162,7 @@ docker logs squidproxy
 docker exec squidproxy tail -f /var/log/squid/access.log
 ```
 
-Look for `HIER_DIRECT` (direct) or `FIRSTUP_PARENT/<peer-ip>` (via parent).
+Look for `HIER_DIRECT/<ip>` (direct) or `FIRSTUP_PARENT/<peer-ip>` (via parent).
 
 ## Security Notes
 
@@ -158,7 +181,7 @@ docker build -t squid-proxy-auth .
 ## How It Works
 
 - `squid.conf` contains the static, hardened base config and includes `/etc/squid/conf.d/*.conf`.
-- At container start, `entrypoint.sh` reads the environment variables and generates `/etc/squid/conf.d/env.conf` with the ACL, `http_access`, `cache_peer`, and `never_direct` rules.
+- At container start, `entrypoint.sh` reads the environment variables and generates `/etc/squid/conf.d/env.conf` with the ACL, `http_access`, `cache_peer`, `cache_peer_access`, `always_direct`, and `never_direct` rules.
 - Credentials are written to `/etc/squid/passwd` with `htpasswd` (bcrypt).
 - The cache directory lives on a Docker volume so it survives container recreation.
 

@@ -13,6 +13,8 @@ services:
       PROXY_PASSWORD: ${PROXY_PASSWORD:?Set it in .env}
       # Optional: comma-separated IPs/CIDRs allowed without auth
       ALLOWED_IPS: ${ALLOWED_IPS:-}
+      # Optional: comma-separated domains that bypass the parent peer
+      DIRECT_DOMAINS: ${DIRECT_DOMAINS:-}
       # Optional: upstream parent proxy -> "host port [extra options]"
       CACHE_PEER: ${CACHE_PEER:-}
       # Optional: 1 = force all traffic through the peer
